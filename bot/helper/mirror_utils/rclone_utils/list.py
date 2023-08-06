@@ -79,7 +79,7 @@ async def path_updates(client, query, obj):
             if config_dict['DATABASE_URL']:
                 await DbManger().update_config({'RCLONE_PATH': path})
     elif data[1] == 'owner':
-        obj.config_path = 'rclone.conf'
+        obj.config_path = 'rcl.conf'
         obj.path = ''
         obj.remote = ''
         await obj.list_remotes()
@@ -107,7 +107,7 @@ class RcloneList:
         self.query_proc = False
         self.item_type = '--dirs-only'
         self.event = Event()
-        self.user_rcc_path = f'rclone/{self.__user_id}.conf'
+        self.user_rcc_path = f'zcl/{self.__user_id}.conf'
         self.config_path = ''
         self.path = ''
         self.list_status = ''
@@ -257,7 +257,7 @@ class RcloneList:
             button = buttons.build_menu(2)
             await self.__send_list_message(msg, button)
         else:
-            self.config_path = 'rclone.conf' if self.__rc_owner else self.user_rcc_path
+            self.config_path = 'rcl.conf' if self.__rc_owner else self.user_rcc_path
             await self.list_remotes()
 
     async def back_from_path(self):
@@ -285,6 +285,6 @@ class RcloneList:
             await self.list_remotes()
         await wrap_future(future)
         await deleteMessage(self.__reply_to)
-        if self.config_path != 'rclone.conf' and not self.is_cancelled:
+        if self.config_path != 'rcl.conf' and not self.is_cancelled:
             return f'mrcc:{self.remote}{self.path}'
         return f'{self.remote}{self.path}'
