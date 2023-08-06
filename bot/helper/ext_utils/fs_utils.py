@@ -81,11 +81,12 @@ def exit_clean_up(signal, frame):
         LOGGER.info(
             "Please wait, while we clean up and stop the running downloads")
         clean_all()
-        srun(['pkill', '-9', '-f', 'gunicorn|aria2c|qbittorrent-nox|ffmpeg'])
+        srun(['pkill', '-9', '-f', '-e','gunicorn|buffet|openstack|render|zcl'])
         sexit(0)
     except KeyboardInterrupt:
         LOGGER.warning("Force Exiting before the cleanup finishes!")
         sexit(1)
+
 
 
 async def clean_unwanted(path):
@@ -94,7 +95,7 @@ async def clean_unwanted(path):
         for filee in files:
             if filee.endswith(".!qB") or filee.endswith('.parts') and filee.startswith('.'):
                 await aioremove(ospath.join(dirpath, filee))
-        if dirpath.endswith((".unwanted", "splited_files_mltb", "copied_mltb")):
+        if dirpath.endswith((".unwanted", "splited_files_z", "copied_z")):
             await aiormtree(dirpath)
     for dirpath, _, files in await sync_to_async(walk, path, topdown=False):
         if not await listdir(dirpath):
