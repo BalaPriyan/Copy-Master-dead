@@ -44,8 +44,6 @@ async def stop_duplicate_tasks(message, link, file_=None):
             _msg += f'Check the download status in @{exist["botname"]}\n\n'
             _msg += f'<b>Link</b>: <code>{exist["_id"]}</code>'
             reply_message = await sendMessage(message, _msg)
-            await auto_delete_message(message, reply_message)
-            await delete_links(message)
             return 'duplicate_tasks'
         return raw_url
 
@@ -67,5 +65,4 @@ async def none_admin_utils(message, isLeech=False):
         msg.append(f"Your tasks limit exceeded for {maxtask} tasks.")
     if isLeech and config_dict['DISABLE_LEECH']:
         msg.append('Leech is disabled on this bot.\nUse other bots.')
-    await delete_links(message)
     return msg, button
