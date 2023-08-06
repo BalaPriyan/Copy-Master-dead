@@ -31,12 +31,11 @@ from .modules import authorize, clone, gd_count, gd_delete, gd_list, cancel_mirr
                      rss, shell, eval, users_settings, bot_settings, speedtest, save_msg, images, imdb, anilist, mediainfo, mydramalist, gen_pyro_sess, \
                      gd_clean, broadcast, category_select
 
-
 async def stats(client, message):
     msg, btns = await get_stats(message)
     await sendMessage(message, msg, btns, photo='IMAGES')
 
-
+@new_task
 async def start(client, message):
     buttons = ButtonMaker()
     buttons.ubutton(BotTheme('ST_BN1_NAME'), BotTheme('ST_BN1_URL'))
@@ -63,12 +62,13 @@ async def start(client, message):
         return await sendMessage(message, msg, reply_markup)
     elif await CustomFilters.authorized(client, message):
         start_string = BotTheme('ST_MSG', help_command=f"/{BotCommands.HelpCommand}")
-        await message.reply_photo(BotTheme('PIC'), caption=start_string, reply_markup=reply_markup)
-    elif config_dict['DM_MODE']:
-        await sendMessage(message, BotTheme('ST_BOTPM'), reply_markup=reply_markup, photo=BotTheme('PIC'))
+        await sendMessage(message, start_string, reply_markup, photo='IMAGES')
+    elif config_dict['BOT_PM']:
+        await sendMessage(message, BotTheme('ST_BOTPM'), reply_markup, photo='IMAGES')
     else:
-        await sendMessage(message, BotTheme('ST_UNAUTH'), reply_markup, photo=BotTheme('PIC'))
+        await sendMessage(message, BotTheme('ST_UNAUTH'), reply_markup, photo='IMAGES')
     await DbManger().update_pm_users(message.from_user.id)
+
 
 async def token_callback(_, query):
     user_id = query.from_user.id
@@ -100,15 +100,17 @@ async def login(_, message):
     else:
         await sendMessage(message, '<b>Bot Login Usage :</b>\n\n<code>/cmd {password}</code>')
 
-async def restart(_, message):
-    restart_message = await sendMessage(message, "Restarting...")
+
+async def restart(client, message):
+    restart_message = await sendMessage(message, BotTheme('RESTARTING'))
     if scheduler.running:
         scheduler.shutdown(wait=False)
+    await delete_all_messages()
     for interval in [QbInterval, Interval]:
         if interval:
             interval[0].cancel()
     await sync_to_async(clean_all)
-    proc1 = await create_subprocess_exec('pkill', '-9', '-f', '-e', 'gunicorn|buffet|openstack|render|zcl')
+     proc1 = await create_subprocess_exec('pkill', '-9', '-f', '-e', 'gunicorn|buffet|openstack|render|zcl')
     proc2 = await create_subprocess_exec('python3', 'update.py')
     await gather(proc1.wait(), proc2.wait())
     async with aiopen(".restartmsg", "w") as f:
@@ -122,11 +124,13 @@ async def ping(_, message):
     end_time = monotonic()
     await editMessage(reply, BotTheme('PING_VALUE', value=int((end_time - start_time) * 1000)))
 
+
 async def log(_, message):
     buttons = ButtonMaker()
     buttons.ibutton('📑 Log Display', f'wzmlx {message.from_user.id} logdisplay')
     buttons.ibutton('📨 Web Paste', f'wzmlx {message.from_user.id} webpaste')
     await sendFile(message, 'log.txt', buttons=buttons.build_menu(1))
+
 
 async def search_images():
     if query_list := config_dict['IMG_SEARCH']:
@@ -165,8 +169,8 @@ async def bot_help(client, message):
     await sendMessage(message, "㊂ <b><i>Help Guide Menu!</i></b>\n\n<b>NOTE: <i>Click on any CMD to see more minor detalis.</i></b>", buttons.build_menu(2))
 
 
-
 async def restart_notification():
+    now=datetime.now(timezone(config_dict['TIMEZONE']))
     if await aiopath.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
@@ -176,22 +180,22 @@ async def restart_notification():
     async def send_incompelete_task_message(cid, msg):
         try:
             if msg.startswith("⌬ <b><i>Restarted Successfully!</i></b>"):
-                await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="⌬ <b><i>Restarted Successfully!</i></b>")
-                await bot.send_message(chat_id, msg, disable_web_page_preview=True, reply_to_message_id=msg_id)
+                await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=msg)
                 await aioremove(".restartmsg")
             else:
-                await bot.send_message(chat_id=cid, text=msg, disable_web_page_preview=True,
-                                       disable_notification=True)
+                await bot.send_message(chat_id=cid, text=msg, disable_web_page_preview=True, disable_notification=True)
         except Exception as e:
             LOGGER.error(e)
-    if DATABASE_URL:
-        if INCOMPLETE_TASK_NOTIFIER and (notifier_dict := await DbManger().get_incomplete_tasks()):
+
+    if INCOMPLETE_TASK_NOTIFIER and DATABASE_URL:
+        if notifier_dict := await DbManger().get_incomplete_tasks():
             for cid, data in notifier_dict.items():
-                msg = 'Restarted Successfully!' if cid == chat_id else 'Bot Restarted!'
+                msg = BotTheme('RESTART_SUCCESS', time=now.strftime('%I:%M:%S %p'), date=now.strftime('%d/%m/%y'), timz=config_dict['TIMEZONE'], version=get_version()) if cid == chat_id else BotTheme('RESTARTED')
+                msg += "\n\n⌬ <b><i>Incomplete Tasks!</i></b>"
                 for tag, links in data.items():
-                    msg += f"\n\n👤 {tag} Do your tasks again. \n"
+                    msg += f"\n➲ {tag}: "
                     for index, link in enumerate(links, start=1):
-                        msg += f" {index}: {link} \n"
+                        msg += f" <a href='{link}'>{index}</a> |"
                         if len(msg.encode()) > 4000:
                             await send_incompelete_task_message(cid, msg)
                             msg = ''
@@ -201,8 +205,8 @@ async def restart_notification():
     if await aiopath.isfile(".restartmsg"):
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=BotTheme('RESTART_SUCCESS', time=now.strftime('%I:%M:%S %p'), date=now.strftime('%d/%m/%y'), timz=config_dict['TIMEZONE'], version=get_version()))
-        except:
-            pass
+        except Exception as e:
+            LOGGER.error(e)
         await aioremove(".restartmsg")
 
 
@@ -226,7 +230,7 @@ async def main():
         BotCommands.HelpCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
     bot.add_handler(MessageHandler(stats, filters=command(
         BotCommands.StatsCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-    LOGGER.info(f"Bot [@{bot_name}] Started!")
+    LOGGER.info(f"WZML-X Bot [@{bot_name}] Started!")
     signal(SIGINT, exit_clean_up)
 
 bot.loop.run_until_complete(main())
