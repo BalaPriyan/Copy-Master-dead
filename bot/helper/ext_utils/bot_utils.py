@@ -12,6 +12,12 @@ from pyrogram.types import BotCommand
 from pyrogram.handlers import CallbackQueryHandler
 from pyrogram.filters import regex
 from aiohttp import ClientSession
+from aiohttp import ClientSession
+from psutil import virtual_memory, cpu_percent, disk_usage
+from bot.version import get_version
+from aiofiles.os import remove as aioremove, path as aiopath, mkdir
+from psutil import disk_usage, disk_io_counters, Process, cpu_percent, swap_memory, cpu_count, cpu_freq, getloadavg, virtual_memory, net_io_counters, boot_time
+
 
 from bot import (bot, bot_loop, bot_name, botStartTime, config_dict, download_dict,
                  download_dict_lock, extra_buttons, user_data)
@@ -19,6 +25,7 @@ from bot.helper.ext_utils.shortener import short_url
 from bot.helper.ext_utils.telegraph_helper import telegraph
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.button_build import ButtonMaker
+from bot.helper.themes import BotTheme
 
 THREADPOOL      = ThreadPoolExecutor(max_workers=1000)
 MAGNET_REGEX    = r'^magnet:\?.*xt=urn:(btih|btmh):[a-zA-Z0-9]*\s*'
@@ -468,6 +475,191 @@ def new_thread(func):
         future = run_coroutine_threadsafe(func(*args, **kwargs), bot_loop)
         return future.result() if wait else future
     return wrapper
+
+async def compare_versions(v1, v2):
+    v1_parts = [int(part) for part in v1[1:-2].split('.')]
+    v2_parts = [int(part) for part in v2[1:-2].split('.')]
+    for i in range(3):
+        v1_part, v2_part = v1_parts[i], v2_parts[i]
+        if v1_part < v2_part:
+            return "New Version Update is Available! Check Now!"
+        elif v1_part > v2_part:
+            return "More Updated! Kindly Contribute in Official"
+    return "Already up to date with latest version"
+
+
+
+async def get_stats(event, key="home"):
+    user_id = event.from_user.id
+    btns = ButtonMaker()
+    btns.ibutton('Back', f'wzmlx {user_id} stats home')
+    if key == "home":
+        btns = ButtonMaker()
+        btns.ibutton('Bot Stats', f'wzmlx {user_id} stats stbot')
+        btns.ibutton('OS Stats', f'wzmlx {user_id} stats stsys')
+        btns.ibutton('Repo Stats', f'wzmlx {user_id} stats strepo')
+        btns.ibutton('Bot Limits', f'wzmlx {user_id} stats botlimits')
+        msg = "⌬ <b><i>Bot & OS Statistics!</i></b>"
+    elif key == "stbot":
+        sysTime     = get_readable_time(time() - boot_time())
+        botTime     = get_readable_time(time() - botStartTime)
+        remaining_time = 86400 - (time() - botStartTime)
+        res_time = '⚠️ Soon ⚠️' if remaining_time <= 0 else get_readable_time(remaining_time)
+        total, used, free, disk = disk_usage('/')
+        swap = swap_memory()
+        memory = virtual_memory()
+        total       = get_readable_file_size(total)
+        used        = get_readable_file_size(used)
+        free        = get_readable_file_size(free)
+        sent        = get_readable_file_size(net_io_counters().bytes_sent)
+        recv        = get_readable_file_size(net_io_counters().bytes_recv)
+        tb          = get_readable_file_size(net_io_counters().bytes_sent + net_io_counters().bytes_recv)
+        cpuUsage    = cpu_percent(interval=1)
+        v_core      = cpu_count(logical=True) - cpu_count(logical=False)
+        memory      = virtual_memory()
+        swap        = swap_memory()
+        mem_p       = memory.percent
+        try:
+            disk_io = psutil.disk_io_counters()
+            if disk_io is not None:
+                disk_read = get_readable_file_size(disk_io.read_bytes) + f" ({get_readable_time(disk_io.read_time / 1000)})"
+                disk_write = get_readable_file_size(disk_io.write_bytes) + f" ({get_readable_time(disk_io.write_time / 1000)})"
+            else:
+                disk_read = "N/A"
+                disk_write = "N/A"
+        except Exception as e:
+            disk_read = "Error"
+            disk_write = "Error"
+        if config_dict['WZMLX']: 
+                msg = BotTheme('BOT_STATS',  
+                      bot_uptime=get_readable_time(time() - botStartTime),
+                      ram_bar=get_progress_bar_string(memory.percent),
+                      ram=memory.percent,
+                      ram_u=get_readable_file_size(memory.used),
+                      ram_f=get_readable_file_size(memory.available),
+                      ram_t=get_readable_file_size(memory.total),
+                      swap_bar=get_progress_bar_string(swap.percent),
+                      swap=swap.percent,
+                      swap_u=get_readable_file_size(swap.used),
+                      swap_f=get_readable_file_size(swap.free),
+                      swap_t=get_readable_file_size(swap.total),
+                      disk=disk,
+                      disk_bar=get_progress_bar_string(disk),
+                      disk_read=disk_read,
+                      disk_write=disk_write,
+                      disk_t=get_readable_file_size(total),
+                      disk_u=get_readable_file_size(used),
+                      disk_f=get_readable_file_size(free),
+                  )
+        else:
+                  msg = f'⌬<b><i><u>Bot Statistics</u></i></b>\n\n'\
+                        f'╭<code>CPU  : </code>{get_progress_bar_string(cpuUsage)} {cpuUsage}%\n' \
+                        f'├<code>RAM  : </code>{get_progress_bar_string(mem_p)} {mem_p}%\n' \
+                        f'├<code>SWAP : </code>{get_progress_bar_string(swap.percent)} {swap.percent}%\n' \
+                        f'╰<code>DISK : </code>{get_progress_bar_string(disk)} {disk}%\n\n' \
+                        f'●<code>Bot Uptime      : </code> {botTime}\n' \
+                        f'●<code>BOT Restart     : </code> {res_time}\n\n' \
+                        f'●<code>Uploaded        : </code> {sent}\n' \
+                        f'●<code>Downloaded      : </code> {recv}\n' \
+                        f'●<code>Total Bandwidth : </code> {tb}'
+    elif key == "stsys":
+        cpuUsage = cpu_percent(interval=0.5)
+        if config_dict['WZMLX']: 
+            msg = BotTheme('SYS_STATS',
+                           os_uptime=get_readable_time(time() - boot_time()),
+                           os_version=platform.version(),
+                           os_arch=platform.platform(),
+                           up_data=get_readable_file_size(net_io_counters().bytes_sent),
+                           dl_data=get_readable_file_size(net_io_counters().bytes_recv),
+                           pkt_sent=str(net_io_counters().packets_sent)[:-3],
+                           pkt_recv=str(net_io_counters().packets_recv)[:-3],
+                           tl_data=get_readable_file_size(net_io_counters().bytes_recv + net_io_counters().bytes_sent),
+                           cpu=cpuUsage,
+                           cpu_bar=get_progress_bar_string(cpuUsage),
+                           cpu_freq=f"{cpu_freq(percpu=False).current / 1000:.2f} GHz" if cpu_freq() else "Access Denied",
+                           sys_load="%, ".join(str(round((x / cpu_count() * 100), 2)) for x in getloadavg()) + "%, (1m, 5m, 15m)",
+                           p_core=cpu_count(logical=False),
+                           v_core=cpu_count(logical=True) - cpu_count(logical=False),
+                           total_core=cpu_count(logical=True),
+                           cpu_use=len(Process().cpu_affinity()),
+           )
+        else:
+           msg = f'⌬<b><i><u>System Statistics</u></i></b>\n\n'\
+                 f'╭<b>System Uptime:</b> <code>{sysTime}</code>\n' \
+                 f'├<b>P-Core(s):</b> <code>{cpu_count(logical=False)}</code> | ' \
+                 f'├<b>V-Core(s):</b> <code>{v_core}</code>\n' \
+                 f'╰<b>Frequency:</b> <code>{cpu_freq(percpu=False).current / 1000:.2f} GHz</code>\n\n' \
+                 f'●<b>CPU:</b> {get_progress_bar_string(cpuUsage)}<code> {cpuUsage}%</code>\n' \
+                 f'╰<b>CPU Total Core(s):</b> <code>{cpu_count(logical=True)}</code>\n\n' \
+                 f'●<b>RAM:</b> {get_progress_bar_string(mem_p)}<code> {mem_p}%</code>\n' \
+                 f'╰<b>Total:</b> <code>{get_readable_file_size(memory.total)}</code> | ' \
+                 f'●<b>Free:</b> <code>{get_readable_file_size(memory.available)}</code>\n\n' \
+                 f'●<b>SWAP:</b> {get_progress_bar_string(swap.percent)}<code> {swap.percent}%</code>\n' \
+                 f'╰<b>Total</b> <code>{get_readable_file_size(swap.total)}</code> | ' \
+                 f'●<b>Free:</b> <code>{get_readable_file_size(swap.free)}</code>\n\n' \
+                 f'●<b>DISK:</b> {get_progress_bar_string(disk)}<code> {disk}%</code>\n' \
+                 f'╰<b>Total:</b> <code>{total}</code> | <b>Free:</b> <code>{free}</code>'
+    elif key == "strepo":
+        last_commit, changelog = 'No Data', 'N/A'
+        if await aiopath.exists('.git'):
+            last_commit = (await cmd_exec("git log -1 --pretty='%cd ( %cr )' --date=format-local:'%d/%m/%Y'", True))[0]
+            version     = (await cmd_exec("git describe --abbrev=0 --tags", True))[0]
+            changelog = (await cmd_exec("git log -1 --pretty=format:'<code>%s</code> <b>By</b> %an'", True))[0]
+        official_v = (await cmd_exec("curl -o latestversion.py https://raw.githubusercontent.com/weebzone/WZML-X/master/bot/version.py -s && python3 latestversion.py && rm latestversion.py", True))[0]
+        if config_dict['WZMLX']:
+           msg = BotTheme('REPO_STATS',
+                          last_commit=last_commit,
+                          bot_version=get_version(),
+                          lat_version=official_v,
+                          commit_details=changelog,
+                          remarks=await compare_versions(get_version(), official_v),
+           )
+        else:
+           msg = f'⌬<b><i><u>Repo Info</u></i></b>\n\n' \
+                 f'╭<code>Updated   : </code> {last_commit}\n' \
+                 f'├<code>Version   : </code> {version}\n' \
+                 f'╰<code>Changelog : </code> {change_log}'
+    elif key == "botlimits":
+        if config_dict['WZMLX']:
+           msg = BotTheme('BOT_LIMITS',
+                          DL = ('∞' if (val := config_dict['DIRECT_LIMIT']) == '' else val),
+                          TL = ('∞' if (val := config_dict['TORRENT_LIMIT']) == '' else val),
+                          GL = ('∞' if (val := config_dict['GDRIVE_LIMIT']) == '' else val),
+                          YL = ('∞' if (val := config_dict['YTDLP_LIMIT']) == '' else val),
+                          PL = ('∞' if (val := config_dict['PLAYLIST_LIMIT']) == '' else val),
+                          CL = ('∞' if (val := config_dict['CLONE_LIMIT']) == '' else val),
+                          ML = ('∞' if (val := config_dict['MEGA_LIMIT']) == '' else val),
+                          LL = ('∞' if (val := config_dict['LEECH_LIMIT']) == '' else val),
+                          TV  = ('Disabled' if (val := config_dict['TOKEN_TIMEOUT']) == '' else get_readable_time(val)),
+                          UTI = ('Disabled' if (val := config_dict['USER_TIME_INTERVAL']) == 0 else get_readable_time(val)),
+                          UT = ('∞' if (val := config_dict['USER_MAX_TASKS']) == '' else val),
+                          BT = ('∞' if (val := config_dict['BOT_MAX_TASKS']) == '' else val),
+           )
+        else:
+          DIR = 'Unlimited' if config_dict['DIRECT_LIMIT']    == '' else config_dict['DIRECT_LIMIT']
+          YTD = 'Unlimited' if config_dict['YTDLP_LIMIT']     == '' else config_dict['YTDLP_LIMIT']
+          GDL = 'Unlimited' if config_dict['GDRIVE_LIMIT']    == '' else config_dict['GDRIVE_LIMIT']
+          TOR = 'Unlimited' if config_dict['TORRENT_LIMIT']   == '' else config_dict['TORRENT_LIMIT']
+          CLL = 'Unlimited' if config_dict['CLONE_LIMIT']     == '' else config_dict['CLONE_LIMIT']
+          MGA = 'Unlimited' if config_dict['MEGA_LIMIT']      == '' else config_dict['MEGA_LIMIT']
+          TGL = 'Unlimited' if config_dict['LEECH_LIMIT']     == '' else config_dict['LEECH_LIMIT']
+          UMT = 'Unlimited' if config_dict['USER_MAX_TASKS']  == '' else config_dict['USER_MAX_TASKS']
+          BMT = 'Unlimited' if config_dict['QUEUE_ALL']       == '' else config_dict['QUEUE_ALL']
+
+          msg = f'⌬<b><i><u>Bot Limitations</u></i></b>\n' \
+                f'╭<code>Torrent   : {TOR}</code> <b>GB</b>\n' \
+                f'├<code>G-Drive   : {GDL}</code> <b>GB</b>\n' \
+                f'├<code>Yt-Dlp    : {YTD}</code> <b>GB</b>\n' \
+                f'├<code>Direct    : {DIR}</code> <b>GB</b>\n' \
+                f'├<code>Clone     : {CLL}</code> <b>GB</b>\n' \
+                f'├<code>Leech     : {TGL}</code> <b>GB</b>\n' \
+                f'╰<code>MEGA      : {MGA}</code> <b>GB</b>\n\n' \
+                f'╭<code>User Tasks: {UMT}</code>\n' \
+                f'╰<code>Bot Tasks : {BMT}</code>'
+          
+    btns.ibutton('Close', f'wzmlx {user_id} close')
+    return msg, btns.build_menu(2)
+
 
 
 async def set_commands(client):
