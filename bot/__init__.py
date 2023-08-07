@@ -410,6 +410,9 @@ IMAGE_URL = environ.get('IMAGE_URL', '')
 if len(IMAGE_URL) == 0:
     IMAGE_URL = 'https://graph.org/file/d454b953103d42d759f8d.jpg'
 
+WZMLX = environ.get('WZMLX', '')
+WZMLX = WZMLX.lower() == 'true'
+
 config_dict = {
     "AS_DOCUMENT": AS_DOCUMENT,
     "AUTHORIZED_CHATS": AUTHORIZED_CHATS,
@@ -485,7 +488,8 @@ config_dict = {
     "DELETE_LINKS": DELETE_LINKS,
     "TOKEN_TIMEOUT": TOKEN_TIMEOUT,
     "BOT_THEME": BOT_THEME,
-    "IMAGE_URL": IMAGE_URL
+    "IMAGE_URL": IMAGE_URL,
+    "WZMLX"= WZMLX
 }
 
 config_dict = OrderedDict(sorted(config_dict.items()))
