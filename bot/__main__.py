@@ -18,9 +18,7 @@ from bot import (DATABASE_URL, INCOMPLETE_TASK_NOTIFIER, LOGGER,
                  config_dict, scheduler, user_data)
 from bot.helper.listeners.aria2_listener import start_aria2_listener
 
-from .helper.ext_utils.bot_utils import (cmd_exec, get_readable_file_size,
-                                         get_readable_time, new_thread, set_commands,
-                                         sync_to_async, get_progress_bar_string)
+from .helper.ext_utils.bot_utils import (cmd_exec, get_readable_file_size, get_readable_time, new_thread, set_commands, sync_to_async, get_progress_bar_string, get_stats)
 from .helper.ext_utils.db_handler import DbManger
 from .helper.ext_utils.fs_utils import clean_all, exit_clean_up, start_cleanup
 from .helper.telegram_helper.button_build import ButtonMaker
@@ -35,154 +33,9 @@ from .modules import (anonymous, authorize, bot_settings, cancel_mirror,
                       shell, status, torrent_search,
                       torrent_select, users_settings, ytdlp, broadcast)
 
-
-async def stats(_, message, edit_mode=False):
-    buttons = ButtonMaker()
-    sysTime     = get_readable_time(time() - boot_time())
-    botTime     = get_readable_time(time() - botStartTime)
-    remaining_time = 86400 - (time() - botStartTime)
-    res_time = '⚠️ Soon ⚠️' if remaining_time <= 0 else get_readable_time(remaining_time)
-    total, used, free, disk = disk_usage('/')
-    total       = get_readable_file_size(total)
-    used        = get_readable_file_size(used)
-    free        = get_readable_file_size(free)
-    sent        = get_readable_file_size(net_io_counters().bytes_sent)
-    recv        = get_readable_file_size(net_io_counters().bytes_recv)
-    tb          = get_readable_file_size(net_io_counters().bytes_sent + net_io_counters().bytes_recv)
-    cpuUsage    = cpu_percent(interval=1)
-    v_core      = cpu_count(logical=True) - cpu_count(logical=False)
-    memory      = virtual_memory()
-    swap        = swap_memory()
-    mem_p       = memory.percent
-
-    bot_stats = f'⌬<b><i><u>Bot Statistics</u></i></b>\n\n'\
-                f'╭<code>CPU  : </code>{get_progress_bar_string(cpuUsage)} {cpuUsage}%\n' \
-                f'├<code>RAM  : </code>{get_progress_bar_string(mem_p)} {mem_p}%\n' \
-                f'├<code>SWAP : </code>{get_progress_bar_string(swap.percent)} {swap.percent}%\n' \
-                f'╰<code>DISK : </code>{get_progress_bar_string(disk)} {disk}%\n\n' \
-                f'●<code>Bot Uptime      : </code> {botTime}\n' \
-                f'●<code>BOT Restart     : </code> {res_time}\n\n' \
-                f'●<code>Uploaded        : </code> {sent}\n' \
-                f'●<code>Downloaded      : </code> {recv}\n' \
-                f'●<code>Total Bandwidth : </code> {tb}'
-
-  
-    sys_stats = f'⌬<b><i><u>System Statistics</u></i></b>\n\n'\
-                f'╭<b>System Uptime:</b> <code>{sysTime}</code>\n' \
-                f'├<b>P-Core(s):</b> <code>{cpu_count(logical=False)}</code> | ' \
-                f'├<b>V-Core(s):</b> <code>{v_core}</code>\n' \
-                f'╰<b>Frequency:</b> <code>{cpu_freq(percpu=False).current / 1000:.2f} GHz</code>\n\n' \
-                f'●<b>CPU:</b> {get_progress_bar_string(cpuUsage)}<code> {cpuUsage}%</code>\n' \
-                f'╰<b>CPU Total Core(s):</b> <code>{cpu_count(logical=True)}</code>\n\n' \
-                f'●<b>RAM:</b> {get_progress_bar_string(mem_p)}<code> {mem_p}%</code>\n' \
-                f'╰<b>Total:</b> <code>{get_readable_file_size(memory.total)}</code> | ' \
-                f'●<b>Free:</b> <code>{get_readable_file_size(memory.available)}</code>\n\n' \
-                f'●<b>SWAP:</b> {get_progress_bar_string(swap.percent)}<code> {swap.percent}%</code>\n' \
-                f'╰<b>Total</b> <code>{get_readable_file_size(swap.total)}</code> | ' \
-                f'●<b>Free:</b> <code>{get_readable_file_size(swap.free)}</code>\n\n' \
-                f'●<b>DISK:</b> {get_progress_bar_string(disk)}<code> {disk}%</code>\n' \
-                f'╰<b>Total:</b> <code>{total}</code> | <b>Free:</b> <code>{free}</code>'
-
-
-    buttons.ibutton("Sys Stats",  "show_sys_stats")
-    buttons.ibutton("Repo Stats", "show_repo_stats")
-    buttons.ibutton("Bot Limits", "show_bot_limits")
-    buttons.ibutton("Close", "close_signal")
-    sbtns = buttons.build_menu(2)
-    if not edit_mode:
-        await message.reply(bot_stats, reply_markup=sbtns)
-    return bot_stats, sys_stats
-
-
-async def send_bot_stats(_, query):
-    buttons = ButtonMaker()
-    bot_stats, _ = await stats(_, query.message, edit_mode=True)
-    buttons.ibutton("Sys Stats",  "show_sys_stats")
-    buttons.ibutton("Repo Stats", "show_repo_stats")
-    buttons.ibutton("Bot Limits", "show_bot_limits")
-    buttons.ibutton("Close",      "close_signal")
-    sbtns = buttons.build_menu(2)
-    await query.answer()
-    await query.message.edit_text(bot_stats, reply_markup=sbtns)
-
-
-async def send_sys_stats(_, query):
-    buttons = ButtonMaker()
-    _, sys_stats = await stats(_, query.message, edit_mode=True)
-    buttons.ibutton("Bot Stats",  "show_bot_stats")
-    buttons.ibutton("Repo Stats", "show_repo_stats")
-    buttons.ibutton("Bot Limits", "show_bot_limits")
-    buttons.ibutton("Close",      "close_signal")
-    sbtns = buttons.build_menu(2)
-    await query.answer()
-    await query.message.edit_text(sys_stats, reply_markup=sbtns)
-
-
-async def send_repo_stats(_, query):
-    buttons = ButtonMaker()
-    if await aiopath.exists('.git'):
-        last_commit = (await cmd_exec("git log -1 --date=short --pretty=format:'%cr'", True))[0]
-        version     = (await cmd_exec("git describe --abbrev=0 --tags", True))[0]
-        change_log  = (await cmd_exec("git log -1 --pretty=format:'%s'", True))[0]
-    else:
-        last_commit = 'No UPSTREAM_REPO'
-        version     = 'N/A'
-        change_log  = 'N/A'
-
-    repo_stats = f'⌬<b><i><u>Repo Info</u></i></b>\n\n' \
-                  f'╭<code>Updated   : </code> {last_commit}\n' \
-                  f'├<code>Version   : </code> {version}\n' \
-                  f'╰<code>Changelog : </code> {change_log}'
-
-    buttons.ibutton("Bot Stats",  "show_bot_stats")
-    buttons.ibutton("Sys Stats",  "show_sys_stats")
-    buttons.ibutton("Bot Limits", "show_bot_limits")
-    buttons.ibutton("Close", "close_signal")
-    sbtns = buttons.build_menu(2)
-    await query.answer()
-    await query.message.edit_text(repo_stats, reply_markup=sbtns)
-
-
-async def send_bot_limits(_, query):
-    buttons = ButtonMaker()
-    DIR = 'Unlimited' if config_dict['DIRECT_LIMIT']    == '' else config_dict['DIRECT_LIMIT']
-    YTD = 'Unlimited' if config_dict['YTDLP_LIMIT']     == '' else config_dict['YTDLP_LIMIT']
-    GDL = 'Unlimited' if config_dict['GDRIVE_LIMIT']    == '' else config_dict['GDRIVE_LIMIT']
-    TOR = 'Unlimited' if config_dict['TORRENT_LIMIT']   == '' else config_dict['TORRENT_LIMIT']
-    CLL = 'Unlimited' if config_dict['CLONE_LIMIT']     == '' else config_dict['CLONE_LIMIT']
-    MGA = 'Unlimited' if config_dict['MEGA_LIMIT']      == '' else config_dict['MEGA_LIMIT']
-    TGL = 'Unlimited' if config_dict['LEECH_LIMIT']     == '' else config_dict['LEECH_LIMIT']
-    UMT = 'Unlimited' if config_dict['USER_MAX_TASKS']  == '' else config_dict['USER_MAX_TASKS']
-    BMT = 'Unlimited' if config_dict['QUEUE_ALL']       == '' else config_dict['QUEUE_ALL']
-
-    bot_limit = f'⌬<b><i><u>Bot Limitations</u></i></b>\n' \
-                f'╭<code>Torrent   : {TOR}</code> <b>GB</b>\n' \
-                f'├<code>G-Drive   : {GDL}</code> <b>GB</b>\n' \
-                f'├<code>Yt-Dlp    : {YTD}</code> <b>GB</b>\n' \
-                f'├<code>Direct    : {DIR}</code> <b>GB</b>\n' \
-                f'├<code>Clone     : {CLL}</code> <b>GB</b>\n' \
-                f'├<code>Leech     : {TGL}</code> <b>GB</b>\n' \
-                f'╰<code>MEGA      : {MGA}</code> <b>GB</b>\n\n' \
-                f'╭<code>User Tasks: {UMT}</code>\n' \
-                f'╰<code>Bot Tasks : {BMT}</code>'
-
-    buttons.ibutton("Bot Stats",  "show_bot_stats")
-    buttons.ibutton("Sys Stats",  "show_sys_stats")
-    buttons.ibutton("Repo Stats", "show_repo_stats")
-    buttons.ibutton("Close", "close_signal")
-    sbtns = buttons.build_menu(2)
-    await query.answer()
-    await query.message.edit_text(bot_limit, reply_markup=sbtns)
-
-
-async def send_close_signal(_, query):
-    await query.answer()
-    try:
-        await query.message.reply_to_message.delete()
-    except Exception as e:
-        LOGGER.error(e)
-    await query.message.delete()
-
+async def stats(client, message):
+    msg, btns = await get_stats(message)
+    await sendMessage(message, msg, btns, photo='IMAGES')
 
 async def start(client, message):
     buttons = ButtonMaker()
