@@ -139,15 +139,14 @@ def get_readable_message():
             tag = reply_to.from_user.mention
 
         elapsed = time() - download.extra_details['startTime']
-        msg += f"<b>____________________________</b>\n\n"
-        msg += f"\n <b>File Name</b> » <i>{escape(f'{download.name()}')}</i>\n" if elapsed <= config_dict['AUTO_DELETE_MESSAGE_DURATION'] else ""
+        msg += f"\n ╭ <b>File Name</b> » <i>{escape(f'{download.name()}')}</i>\n" if elapsed <= config_dict['AUTO_DELETE_MESSAGE_DURATION'] else ""
         msg += f"• <b>{download.status()}</b>"
 
         if download.status() not in [MirrorStatus.STATUS_SEEDING, MirrorStatus.STATUS_PAUSED,
                                      MirrorStatus.STATUS_QUEUEDL, MirrorStatus.STATUS_QUEUEUP]:
 
             
-            msg += f"\n╭ {get_progress_bar_string(download.progress())} » {download.progress()}"
+            msg += f"\n├ {get_progress_bar_string(download.progress())} » {download.progress()}"
             msg += f"\n├ {download.speed()}"
             msg += f"\n├ <code>Done     </code>» {download.processed_bytes()} of {download.size()}"
             msg += f"\n├ <code>ETA      </code>» {download.eta()}"
@@ -227,7 +226,7 @@ def get_readable_message():
     remaining_time = 86400 - (time() - botStartTime)
     res_time = '☠︎ ANYTIME ☠︎' if remaining_time <= 0 else get_readable_time(remaining_time)
     if remaining_time <= 3600:
-        msg += f"\n<b>Bot Restarts In:</b> <code>{res_time}</code>"
+        msg += f"\n╰<b>Bot Restarts In:</b> <code>{res_time}</code>"
     return msg, button
 
 
@@ -256,13 +255,13 @@ async def fstats(_, query):
         elif status == MirrorStatus.STATUS_SEEDING:
             seed += 1
 
-    stat = f'_____Bot Info_____\n\n'\
+    stat = f'\n⌬<_____Bot Info_____>\n\n'\
            f'\n├Active: {acti}, Free: {free}, Queued: {inqu}\n\n' \
            f'\n├Download: {dwld}, Upload: {upld}, Seed: {seed}\n\n' \
            f'\n├Split: {splt}, Clone: {clon}\n\n' \
            f'\n├Zip: {arch}, UnZip: {extr}\n\n' \
            f'\n├Free Disk: {fdisk} ' \
-           f'\n├Uptime: {get_readable_time(uptm)}'
+           f'\n╰Uptime: {get_readable_time(uptm)}'
     await query.answer(stat, show_alert=True)
 
 
