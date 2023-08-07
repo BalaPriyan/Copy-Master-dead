@@ -35,7 +35,7 @@ from .modules import (anonymous, authorize, bot_settings, cancel_mirror,
 
 async def stats(client, message):
     msg, btns = await get_stats(message)
-    await sendMessage(message, msg, btns, photo='IMAGES')
+    await sendMessage(message, msg, btns, photo=BotTheme('PIC'))
 
 async def start(client, message):
     buttons = ButtonMaker()
