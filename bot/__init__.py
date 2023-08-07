@@ -489,7 +489,7 @@ config_dict = {
     "TOKEN_TIMEOUT": TOKEN_TIMEOUT,
     "BOT_THEME": BOT_THEME,
     "IMAGE_URL": IMAGE_URL,
-    "WZMLX"= WZMLX
+    "WZMLX": WZMLX
 }
 
 config_dict = OrderedDict(sorted(config_dict.items()))
