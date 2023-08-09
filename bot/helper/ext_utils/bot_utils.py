@@ -14,11 +14,10 @@ from pyrogram.filters import regex
 from aiohttp import ClientSession
 from aiohttp import ClientSession
 from psutil import virtual_memory, cpu_percent, disk_usage
-from bot.version import get_version
 from aiofiles.os import remove as aioremove, path as aiopath, mkdir
 from psutil import disk_usage, disk_io_counters, Process, cpu_percent, swap_memory, cpu_count, cpu_freq, getloadavg, virtual_memory, net_io_counters, boot_time
 
-
+from bot.version import get_version
 from bot import (bot, bot_loop, bot_name, botStartTime, config_dict, download_dict,
                  download_dict_lock, extra_buttons, user_data)
 from bot.helper.ext_utils.shortener import short_url
